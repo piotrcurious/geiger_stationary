@@ -1,5 +1,7 @@
+// code written by Bing AI
+// further bug fixes by piotrcurious
 
-// Include the libraries for the OLED display and the Geiger counter
+// Include the libraries for the OLED display
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
@@ -32,10 +34,12 @@
 #define TIMEBASE_YES 1 // wheter to print timebase label
 #define TIMEBASE_X 96 // X coordinate of time base label
 #define TIMEBASE_Y 0 // Y coordinate of time base label
+#define TIMEBASE_MIN 1 // minimum timebase in seconds
+#define TIMEBASE_MAX 60 // maximum timebase in seconds
 #define GRAPH_X_MIN 0 // X coordinate of the graph minimum
 #define GRAPH_X_MAX 127 // X coordinate of the graph maximum
-#define GRAPH_Y_MIN 0 // Y coordinate of the graph minimum
-#define GRAPH_Y_MAX 31 // Y coordinate of the graph maximum
+#define GRAPH_Y_MIN 31 // Y coordinate of the graph minimum
+#define GRAPH_Y_MAX 0 // Y coordinate of the graph maximum
 
 // Create an object for the OLED display
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -87,99 +91,69 @@ void setup() {
 void loop() {
   
   unsigned long currentMillis = millis(); // Get current time
-  
   if (currentMillis - previousMillis >= interval) { // If interval has passed
-    
     previousMillis = currentMillis; // Update previous time
-    
     cpm = counts * (60000 / interval); // Calculate CPM
-    
     counts = 0; // Reset counts
-    
+  
     Serial.print("CPM: "); // Print CPM to serial monitor
     Serial.println(cpm);
-    
-    total = total - readings[readIndex]; // Subtract old reading from total
-    
-    readings[readIndex] = cpm; // Store new reading in buffer
-    
-    total = total + readings[readIndex]; // Add new reading to total
-    
-    readIndex++; // Increment index
-
-    if (readIndex >= numReadings) { // If index reaches end of buffer
-      
-      readIndex = 0; // Reset index
-      
+    total = 1 ; // reset graph average to 1 to avoid division by zero 
+    for (unsigned int i = 0 ; i < numReadings -1 ; i++ ) {  
+       readings[i] = readings[i+1];
+       total =+ readings[i] ; // Add reading to total
+ 
     }
-    
+    readings[numReadings-1] = cpm; // Store new reading in buffer
+    total =+ cpm ; // Add new reading to total      
     average = total / numReadings; // Calculate average
     
-    longTermAverage = (longTermAverage + average) / 2; // Calculate long term average
-    
+    longTermAverage = (longTermAverage + average) / 2; // Calculate long term average    
     knobValue = analogRead(KNOB_PIN); // Read knob value
-    
-    timeBase = map(knobValue, knobMin, knobMax, 1, 10); // Map knob value to time base
-    
+    timeBase = map(knobValue, knobMin, knobMax, TIMEBASE_MIN, TIMEBASE_MAX); // Map knob value to time base
     interval = timeBase * 1000; // Adjust interval according to time base
-    
     display.clearDisplay(); // Clear display buffer
-    
-    display.setTextSize(TEXT_SIZE); // Set text size to normal
-    
-    display.setTextColor(TEXT_COLOR); // Set text color to white
-    
+    display.setTextSize(TEXT_SIZE); // Set text size
+    display.setTextColor(TEXT_COLOR); // Set text color
     display.setCursor(CPM_X, CPM_Y); // Set cursor position for CPM label
-    
+    #ifdef CPM_YES
     display.print("CPM: "); // Print CPM label
-    
     display.print(cpm);
+    #endif CPM_YES
     
+    #ifdef USVH_YES
     display.setCursor(USVH_X, USVH_Y); // Set cursor position for uSv/h label
-    
     display.print(" uSv/h: "); // Print uSv/h label
-    
     display.print(cpm / 151.0, 2); // Print uSv/h value (assuming M4011 tube)
+    #endif USVH_YES
     
+    #ifdef TIMEBASE_YES
     display.setCursor(TIME_X, TIME_Y); // Set cursor position for time base label
-    
-    display.print(" Time: "); // Print time base label
-    
+    display.print(" T: "); // Print time base label
     display.print(timeBase); // Print time base value
-    
     display.print("s"); // Print time unit
+    #endif TIMEBASE_YES
     
+    #ifdef LINE_YES
     display.drawLine(0, LINE_Y, 127, LINE_Y, LINE_COLOR); // Draw a horizontal line
-    
-    for (int i = 0; i < numReadings; i++) { // For each reading in the buffer
-      
-      int x = map(i, 0, numReadings - 1, 0, 127); // Map index to x coordinate
-      
-      int y = map(readings[i], 0, average * 2, 31, 17); // Map reading to y coordinate
-      
-      display.drawPixel(x, y, LINE_COLOR); // Draw a pixel at (x,y)
-      
-      int y2 = map(longTermAverage, 0, average * 2, 31, 17); // Map long term average to y coordinate
-      
+    #endif LINE_YES
+
+    int y2 = map(longTermAverage, 0, average * 2, GRAPH_Y_MIN, GRAPH_Y_MAX); // Map long term average to y coordinate
+    for (int i = 0; i < numReadings; i++) { // For each reading in the buffer  
+      int x = map(i, 0, numReadings - 1, GRAPH_X_MIN, GRAPH_X_MAX); // Map index to x coordinate
+      int y = map(readings[i], 0, average * 2, GRAPH_Y_MIN, GRAPH_Y_MAX); // Map reading to y coordinate
+      display.drawPixel(x, y, LINE_COLOR); // Draw a pixel at (x,y) using separator and graph color
       if (i % 4 == 0) { // Draw a sparse dotted line for long term average
-        
         display.drawPixel(x, y2, LINE_COLOR); // Draw a pixel at (x,y2)
-        
       }
-      
     }
-    
     display.display(); // Show display buffer on the screen
-    
   }
-  
 }
 
 // Interrupt function for Geiger counter
 void tube_impulse() {
-  
   counts++; // Increment counts
-  
 }
 
 
