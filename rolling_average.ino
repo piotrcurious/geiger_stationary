@@ -12,22 +12,30 @@
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 
 // Define the pins for the Geiger counter
-#define GEIGER_PIN 2 // Connect the VIN on the Geiger counter to this pin
+#define GEIGER_PIN 2 // Connect the Pulse from the Geiger counter to this pin
 
-// Define the pin for the knob
+// Define the pin for the knob selecting the graph time base
 #define KNOB_PIN A1 // Connect the knob to this analog pin
 
 // Define some constants for the OLED display
 #define TEXT_SIZE 1 // Text size for normal text
 #define TEXT_COLOR SSD1306_WHITE // Text color for normal text
 #define LINE_COLOR SSD1306_WHITE // Line color for graph and separator
-#define LINE_Y 16 // Y coordinate of horizontal line
+#define LINE_YES 1 // wheter to draw line
+#define LINE_Y 9 // Y coordinate of horizontal line
+#define CPM_YES 1 // wheter to print CPM label
 #define CPM_X 0 // X coordinate of CPM label
 #define CPM_Y 0 // Y coordinate of CPM label
+#define USVH_YES 1 // wheter to print uSv/h label
 #define USVH_X 48 // X coordinate of uSv/h label
 #define USVH_Y 0 // Y coordinate of uSv/h label
-#define TIME_X 96 // X coordinate of time base label
-#define TIME_Y 0 // Y coordinate of time base label
+#define TIMEBASE_YES 1 // wheter to print timebase label
+#define TIMEBASE_X 96 // X coordinate of time base label
+#define TIMEBASE_Y 0 // Y coordinate of time base label
+#define GRAPH_X_MIN 0 // X coordinate of the graph minimum
+#define GRAPH_X_MAX 127 // X coordinate of the graph maximum
+#define GRAPH_Y_MIN 0 // Y coordinate of the graph minimum
+#define GRAPH_Y_MAX 31 // Y coordinate of the graph maximum
 
 // Create an object for the OLED display
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -36,11 +44,16 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 volatile unsigned long counts = 0; // Variable for GM Tube events
 unsigned long previousMillis = 0; // Variable for time measurement
 unsigned long interval = 1000; // Interval to calculate CPM (milliseconds)
-unsigned int cpm = 0; // Variable for counts per minute
+unsigned int cpm = 0; // Variable for counts per minute, 65535 max. 
+                      // 100 is normal 
+                      // 300 is max background radiation 
+                      // 800 is max natural radiation (f.e. granite) and gives cancer in about 7 years
+                      // anything above is exceeding typical body renewal rate of cells (7 years)
 
 // Create some variables for the rolling graph
-const int numReadings = 64; // Number of readings to store in the buffer
-int readings[numReadings]; // The buffer to store the readings
+const int numReadings = GRAPH_X_MAX-GRAPH_X_MIN ; // Number of readings to store in the buffer
+            // set to size of the graph 
+unsigned int readings[numReadings]; // The buffer to store the readings
 int readIndex = 0; // The index of the current reading
 long total = 0; // The running total of the readings (changed to long to avoid overflow)
 int average = 0; // The average of the readings
@@ -58,7 +71,7 @@ void setup() {
   // Initialize the OLED display
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
-    while (true); // Don't proceed, loop forever
+    //while (true); // Don't proceed, loop forever
   }
   
   // Initialize the Geiger counter interrupt
