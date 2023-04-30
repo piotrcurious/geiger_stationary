@@ -36,6 +36,8 @@ int graphY = 0; // Y position of the graph
 int graphW = SCREEN_WIDTH; // Width of the graph
 int graphH = SCREEN_HEIGHT - 8; // Height of the graph
 int graphMax = 100; // Maximum value of the graph
+#define OPTIMIZED_MAX_SEARCH // faster for bigger displays
+ //but does not include most recent value in the search 
 
 // Create an array to store the graph data
 //int graphData[SCREEN_WIDTH];
@@ -125,14 +127,30 @@ void updateDisplay() {
 
 // Update rolling graph with new data
 void updateGraph() {
+#ifdef OPTIMIZED_MAX_SEARCH
+// Shift the graph data to the left by one pixel and find the maximum value
+  graphMax = 0;
+  for (int i = 0; i < graphW - 1; i++) {
+    graphData[i] = graphData[i + 1];
+    if (graphData[i] > graphMax) {
+      graphMax = graphData[i];
+      }
+    // graphMax = max(graphMax, graphData[i]); 
+    // or use that instead 
+  }
+#endif OPTIMIZED_MAX_SEARCH
+
+#ifndef OPTIMIZED_MAX_SEARCH
   // Shift the graph data to the left by one pixel
   for (int i = 0; i < graphW - 1; i++) {
     graphData[i] = graphData[i + 1];
   }
+#endif OPTIMIZED_MAX_SEARCH
   
   // Add the new data to the rightmost pixel
   graphData[graphW - 1] = cpm;
-  
+
+#ifndef OPTIMIZED_MAX_SEARCH
   // Find the maximum value in the graph data
   graphMax = 0;
   for (int i = 0; i < graphW; i++) {
@@ -140,6 +158,9 @@ void updateGraph() {
       graphMax = graphData[i];
     }
   }
+#endif OPTIMIZED_MAX_SEARCH
+
+
 }
 
 // Draw rolling graph on OLED display
