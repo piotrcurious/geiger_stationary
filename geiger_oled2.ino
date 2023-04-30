@@ -38,7 +38,8 @@ int graphH = SCREEN_HEIGHT - 8; // Height of the graph
 int graphMax = 100; // Maximum value of the graph
 
 // Create an array to store the graph data
-int graphData[SCREEN_WIDTH];
+//int graphData[SCREEN_WIDTH];
+int graphData[graphW]; // todo : there are things hardcoded below, beware
 
 // Interrupt service routine for the Geiger counter
 void geigerISR() {
