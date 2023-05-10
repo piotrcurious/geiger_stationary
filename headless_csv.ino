@@ -1,6 +1,4 @@
-I'll try to create that. Here is a possible code for Arduino that implements a Geiger counter, outputting average each minute to serial port, in CSV format with first field being timestamp in millis and second field CPM value. I used some information from the web search results¹²³ to write this code.
 
-```c
 // Define pins
 #define GEIGER_PIN 2 // Geiger counter output pin
 #define LED_PIN 13 // LED pin
@@ -16,12 +14,12 @@ unsigned long previousMillis = 0; // Previous time for interval calculation
 unsigned long currentMillis; // Current time for interval calculation
 float cpm; // Counts per minute
 float dose; // Radiation dose in uSv/h
-
+Bool pulse_beep = False ; // pulse detected
 // Interrupt service routine for Geiger pulses
 void pulse() {
   count++; // Increment counter
   digitalWrite(LED_PIN, HIGH); // Turn on LED
-  tone(BUZZER_PIN, 1000, 100); // Play a tone on buzzer
+  pulse_beep = True; 
 }
 
 void setup() {
@@ -43,11 +41,15 @@ void loop() {
     count = 0; // Reset counter
     previousMillis = currentMillis; // Update previous time
   }
-  digitalWrite(LED_PIN, LOW); // Turn off LED
+  if (pulse_beep){
+    tone(BUZZER_PIN, 1000, 20); // beep buzzer
+    digitalWrite(LED_PIN, LOW); // Turn off LED
+    pulse_beep = False ; // reset pulse_beep 
+  }
 }
-```
 
-Source: Conversation with Bing, 5/10/2023
-(1) Arduino DIY Geiger Counter : 12 Steps (with Pictures) - Instructables. https://www.instructables.com/Arduino-DIY-Geiger-Counter/.
-(2) Geiger Counter With Arduino Uno - Instructables. https://www.instructables.com/Geiger-Counter/.
-(3) Arduino Geiger Counter : 6 Steps - Instructables. https://www.instructables.com/Arduino-Geiger-Counter/.
+
+//Source: Conversation with Bing, 5/10/2023
+//(1) Arduino DIY Geiger Counter : 12 Steps (with Pictures) - Instructables. https://www.instructables.com/Arduino-DIY-Geiger-Counter/.
+//(2) Geiger Counter With Arduino Uno - Instructables. https://www.instructables.com/Geiger-Counter/.
+//(3) Arduino Geiger Counter : 6 Steps - Instructables. https://www.instructables.com/Arduino-Geiger-Counter/.
