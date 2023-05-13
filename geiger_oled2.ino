@@ -5,6 +5,9 @@
 #include <SPI.h>
 #include <Wire.h>
 
+// Define interval for serial out statistics
+#define SERIAL_OUT_INTERVAL 60000 // 60 so each minute
+
 // Define the pins for the OLED display
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C // See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
@@ -13,6 +16,7 @@
 
 // Define the pin for the Geiger counter
 #define GEIGER_PIN 2 // Interrupt pin for the Geiger counter
+#define BUZZER_PIN 3 // Buzzer pin
 
 // Define the pin for the knob
 #define KNOB_PIN A1 // Analog pin for the knob
@@ -21,40 +25,49 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Create some variables for the Geiger counter
-volatile unsigned long counts = 0; // Counts per second
-volatile unsigned long cpm = 0; // Counts per minute
-unsigned long previousMillis = 0; // Previous time in milliseconds
-unsigned long interval = 1000; // Interval to update counts per second
+volatile uint32_t counts = 0; // Counts per second
+volatile float cpm    = 0; // Counts per minute
+volatile float cpm_avg1; // cpm short term average 
+volatile float cpm_avg2; // cpm long term average 
+
+uint32_t previousMillis = 0; // Previous time in milliseconds
+uint32_t previousMillis_serial = 0; // Previous time in milliseconds
+uint32_t interval = 1000; // Interval to update counts per second
+bool pulse_beep = false ; // pulse detected
 
 // Create some variables for the knob
 int knobValue = 0; // Value read from the knob
 int timeBase = 10; // Time base for the rolling graph in seconds
 
 // Create some variables for the rolling graph
-int graphX = 0; // X position of the graph
-int graphY = 0; // Y position of the graph
-int graphW = SCREEN_WIDTH; // Width of the graph
-int graphH = SCREEN_HEIGHT - 8; // Height of the graph
-int graphMax = 100; // Maximum value of the graph
-#define OPTIMIZED_MAX_SEARCH // faster for bigger displays
+uint8_t graphX = 0;             // X position of the graph
+uint8_t graphY = 0;             // Y position of the graph
+uint8_t graphW = SCREEN_WIDTH;  // Width of the graph
+uint8_t graphH = SCREEN_HEIGHT-1; // Height of the graph
+uint8_t graphMax = 100;         // Maximum value of the graph
+#define OPTIMIZED_MAX_SEARCH    // faster for bigger displays
  //but does not include most recent value in the search 
 
 // Create an array to store the graph data
-//int graphData[SCREEN_WIDTH];
-int graphData[graphW]; // todo : there are things hardcoded below, beware
+int graphData[SCREEN_WIDTH];
+//int graphData[graphW]; // todo : there are things hardcoded below, beware
 
 // Interrupt service routine for the Geiger counter
 void geigerISR() {
   counts++; // Increment counts by one
+  pulse_beep = true; 
 }
 
 void setup() {
-  Serial.begin(9600); // Start serial communication
+  Serial.begin(115200); // Start serial communication
+
+  pinMode(BUZZER_PIN, OUTPUT); // Set buzzer pin as output
   
   // Initialize the OLED display
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
-    while (true); // Don't proceed, loop forever
+//    while (true); // Don't proceed, loop forever
+ // if display not found, proceed anyway
   }
   
   // Clear the display buffer and set text size and color
@@ -64,65 +77,85 @@ void setup() {
 
   // Attach an interrupt to the Geiger counter pin
   pinMode(GEIGER_PIN, INPUT);
-  attachInterrupt(digitalPinToInterrupt(GEIGER_PIN), geigerISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(GEIGER_PIN), geigerISR, RISING);
 }
 
 void loop() {
-  unsigned long currentMillis = millis(); // Get current time in milliseconds
+  uint32_t currentMillis = millis(); // Get current time in milliseconds
   
   // Update counts per second every interval
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis; // Save current time
     
     cpm = (cpm * 59 + counts * 60) / 60; // Calculate counts per minute using exponential moving average
+    cpm_avg1 = (cpm_avg1 *  3.0 + cpm) /  4.0;  // short term average for external graph
+    cpm_avg2 = (cpm_avg2 * 11.0 + cpm) / 12.0;  // long  term average for external graph
+
+    noInterrupts();   // Disable interrupts while updating counts
+    counts = 0;       // Reset counts to zero
+    interrupts();     // Enable interrupts again
     
-    noInterrupts(); // Disable interrupts while updating counts
-    counts = 0; // Reset counts to zero
-    interrupts(); // Enable interrupts again
-    
-    Serial.print("CPM: "); // Print counts per minute to serial monitor
-    Serial.println(cpm);
-    
-    updateDisplay(); // Update OLED display with new data
-    
-    updateGraph(); // Update rolling graph with new data
-    
-    drawGraph(); // Draw rolling graph on OLED display
-    
-    display.display(); // Show display buffer on screen
+//    Serial.print("CPM: "); // Print counts per minute to serial monitor
+//    Serial.println(cpm);
+    if (currentMillis - previousMillis_serial >= SERIAL_OUT_INTERVAL) { // Check if interval has passed
+      previousMillis_serial = currentMillis; // Update previous time for serial out
+      Serial.print(currentMillis); // Print timestamp in millis
+      Serial.print(","); // Print comma separator
+      Serial.print(cpm_avg1,3); // Print short term average
+      Serial.print(","); // Print comma separator
+      Serial.println(cpm_avg2,3); // Print long term average
+      }
     
     knobValue = analogRead(KNOB_PIN); // Read value from knob
-    
     timeBase = map(knobValue, 0, 1023, 1, 60); // Map knob value to time base in seconds
+      
+                       // Clear the display buffer
+    display.clearDisplay();
+    updateGraph();     // Update rolling graph with new data
+    drawGraph();       // Draw rolling graph on OLED display
+    updateDisplay();   // Update OLED display with text  
+    display.display(); // Show display buffer on screen
     
-    Serial.print("Time base: "); // Print time base to serial monitor
-    Serial.println(timeBase);
-    
-    interval = timeBase * 1000 / graphW; // Calculate interval based on time base and graph width
-    
-    Serial.print("Interval: "); // Print interval to serial monitor
-    Serial.println(interval);
-    
-    delay(10); 
-    // Small delay to avoid bouncing
-  }
+    //interval = timeBase * 1000 / graphW; // Calculate interval based on time base and graph width
+ 
+  } //if 1 second interval
+
+    if (pulse_beep){
+    tone(BUZZER_PIN, 4000, 10); // beep buzzer
+    pulse_beep = false ; // reset pulse_beep 
+    }
 }
 
 // Update OLED display with new data
 void updateDisplay() {
-  // Clear the display buffer
-  display.clearDisplay();
+
+
+//cast shadow first
+  display.setTextColor(SSD1306_BLACK);
+  // Set the cursor position and print CPM value
+  display.setCursor(1, 0);
+  //display.print("CPM: ");
+  display.print(cpm);
   
+  // Set the cursor position and print time base value
+  display.setCursor(65, 0);
+  display.print("T: ");
+  display.print(timeBase);
+  display.print("s");
+
+//paint text
+  display.setTextColor(SSD1306_WHITE);
   // Set the cursor position and print CPM value
   display.setCursor(0, 0);
-  display.print("CPM: ");
+  //display.print("CPM: ");
   display.print(cpm);
   
   // Set the cursor position and print time base value
   display.setCursor(64, 0);
-  display.print("Time base: ");
+  display.print("T: ");
   display.print(timeBase);
   display.print("s");
+
 }
 
 // Update rolling graph with new data
@@ -166,18 +199,21 @@ void updateGraph() {
 // Draw rolling graph on OLED display
 void drawGraph() {
   // Draw a horizontal line at the bottom of the graph
-  display.drawLine(graphX, graphY + graphH - 1, graphX + graphW - 1, graphY + graphH - 1, SSD1306_WHITE);
+  display.drawLine(graphX, graphY + graphH, graphX + graphW , graphY + graphH , SSD1306_WHITE);
   
   // Draw a vertical line at the left of the graph
-  display.drawLine(graphX, graphY, graphX, graphY + graphH - 1, SSD1306_WHITE);
+  //display.drawLine(graphX, graphY, graphX, graphY + graphH - 1, SSD1306_WHITE);
   
   // Draw the graph data as vertical bars
-  for (int i = 0; i < graphW; i++) {
+  for (uint8_t i = 0; i < graphW; i++) {
     // Map the data value to the graph height
-    int barHeight = map(graphData[i], 0, graphMax, 0, graphH - 2);
+    uint8_t barHeight = map(graphData[i], 0, graphMax, 0, graphH );
     
     // Draw a vertical bar from the bottom to the data value
-    display.drawLine(graphX + i, graphY + graphH - 2, graphX + i, graphY + graphH - 2 - barHeight, SSD1306_WHITE);
+//    display.drawLine(graphX + i, graphY + graphH , graphX + i, graphY + graphH - barHeight, SSD1306_WHITE);
+    //display.drawFastVLine(graphX + i, graphY + graphH , barHeight, SSD1306_WHITE);
+    display.drawFastVLine(graphX + i, graphY+(graphH-barHeight) , barHeight, SSD1306_WHITE);
+    
   }
 }
 
