@@ -187,7 +187,17 @@ void updateDisplay() {
 #endif //DRAW_TEXT_SHADOW
 
 #ifdef DRAW_TEXT_RECTANGLE
-display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CPM value
+int16_t  x1, y1;
+uint16_t w, h;
+
+char buffer[40];
+  sprintf(buffer, "%d.%02d",(int)cpm, (int)(cpm*100)%100);
+display.getTextBounds(buffer, TEXT_CPM_X, TEXT_CPM_Y, &x1, &y1, &w, &h);
+display.fillRect(x1,y1-1,w,h+1,BLACK); // Clear the area below CPM value
+
+//display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CPM value
+
+//display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CPM value
 #endif // DRAW_TEXT_RECTANGLE
 
 //paint text
@@ -195,7 +205,7 @@ display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CP
   // Set the cursor position and print CPM value
   display.setCursor(TEXT_CPM_X, TEXT_CPM_Y);
   //display.print("CPM: ");
-  display.print(cpm);
+  display.print(buffer);
 
 #ifdef DRAW_TEXT_TIMEBASE  
 #ifdef DRAW_TEXT_RECTANGLE
