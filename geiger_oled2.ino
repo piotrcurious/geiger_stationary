@@ -14,6 +14,18 @@
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 
+// Define text parameters
+#define DRAW_TEXT // if draw text at all
+//#define DRAW_TEXT_TIMEBASE // if draw timebase
+//#define DRAW_TEXT_SHADOW // if cast shadow 
+#define DRAW_TEXT_RECTANGLE // if clear space for graph by drawing rectangle
+
+#define TEXT_CPM_X 0 // x position of CPM text
+#define TEXT_CPM_Y SCREEN_HEIGHT-8 // y position of CPM text
+
+#define TEXT_TIMEBASE_X 60 // x position of timebase text
+#define TEXT_TIMEBASE_Y SCREEN_HEIGHT-8 // y position of timebase text
+
 // Define the pin for the Geiger counter
 #define GEIGER_PIN 2 // Interrupt pin for the Geiger counter
 #define BUZZER_PIN 3 // Buzzer pin
@@ -44,6 +56,7 @@ uint8_t graphX = 0;             // X position of the graph
 uint8_t graphY = 0;             // Y position of the graph
 uint8_t graphW = SCREEN_WIDTH;  // Width of the graph
 uint8_t graphH = SCREEN_HEIGHT-1; // Height of the graph
+uint8_t graphMin = 0 ;          // minimum value of the graph
 uint8_t graphMax = 100;         // Maximum value of the graph
 #define OPTIMIZED_MAX_SEARCH    // faster for bigger displays
  //but does not include most recent value in the search 
@@ -111,9 +124,11 @@ void loop() {
       
                        // Clear the display buffer
     display.clearDisplay();
-    updateGraph();     // Update rolling graph with new data
+    updateGraph();     // Update rolling graph with new data    
     drawGraph();       // Draw rolling graph on OLED display
+#ifdef DRAW_TEXT    
     updateDisplay();   // Update OLED display with text  
+#endif //DRAW_TEXT
     display.display(); // Show display buffer on screen
     
     //interval = timeBase * 1000 / graphW; // Calculate interval based on time base and graph width
@@ -126,48 +141,90 @@ void loop() {
     }
 }
 
+#ifdef DRAW_TEXT
 // Update OLED display with new data
 void updateDisplay() {
 
 
-//cast shadow first
+#ifdef DRAW_TEXT_SHADOW
+//cast +1 -1 shadow first
   display.setTextColor(SSD1306_BLACK);
   // Set the cursor position and print CPM value
-  display.setCursor(1, 0);
+  display.setCursor(TEXT_CPM_X+1, TEXT_CPM_Y-1);
+  //display.print("CPM: ");
+  display.print(cpm);
+  
+  display.setCursor(TEXT_TIMEBASE_X+1, TEXT_TIMEBASE_Y-1);
+  display.print("T: ");
+  display.print(timeBase);
+  display.print("s");
+  
+//cast +1 +1 shadow 
+  display.setTextColor(SSD1306_BLACK);
+  // Set the cursor position and print CPM value
+  display.setCursor(TEXT_CPM_X+1, TEXT_CPM_Y+1);
   //display.print("CPM: ");
   display.print(cpm);
   
   // Set the cursor position and print time base value
-  display.setCursor(65, 0);
+  display.setCursor(TEXT_TIMEBASE_X+1, TEXT_TIMEBASE_Y+1);
   display.print("T: ");
   display.print(timeBase);
   display.print("s");
+
+//cast -1 +1 shadow first
+  display.setTextColor(SSD1306_BLACK);
+  // Set the cursor position and print CPM value
+  display.setCursor(TEXT_CPM_X-1, TEXT_CPM_Y+1);
+  //display.print("CPM: ");
+  display.print(cpm);
+  
+  // Set the cursor position and print time base value
+  display.setCursor(TEXT_TIMEBASE_X-1, TEXT_TIMEBASE_Y+1);
+  display.print("T: ");
+  display.print(timeBase);
+  display.print("s");
+#endif //DRAW_TEXT_SHADOW
+
+#ifdef DRAW_TEXT_RECTANGLE
+display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CPM value
+#endif // DRAW_TEXT_RECTANGLE
 
 //paint text
   display.setTextColor(SSD1306_WHITE);
   // Set the cursor position and print CPM value
-  display.setCursor(0, 0);
+  display.setCursor(TEXT_CPM_X, TEXT_CPM_Y);
   //display.print("CPM: ");
   display.print(cpm);
-  
+
+#ifdef DRAW_TEXT_TIMEBASE  
+#ifdef DRAW_TEXT_RECTANGLE
+display.fillRect(TEXT_TIMEBASE_X,TEXT_TIMEBASE_Y-1,40,9,BLACK); // Clear the area below timebase value
+#endif // DRAW_TEXT_RECTANGLE
+
   // Set the cursor position and print time base value
-  display.setCursor(64, 0);
+  display.setCursor(TEXT_TIMEBASE_X, TEXT_TIMEBASE_Y);
   display.print("T: ");
   display.print(timeBase);
   display.print("s");
-
+#endif //DRAW_TEXT_TIMEBASE
 }
+#endif DRAW_TEXT
 
 // Update rolling graph with new data
 void updateGraph() {
 #ifdef OPTIMIZED_MAX_SEARCH
 // Shift the graph data to the left by one pixel and find the maximum value
+  graphMin = graphMax; // set graphMin to last graphMax value
   graphMax = 0;
   for (int i = 0; i < graphW - 1; i++) {
     graphData[i] = graphData[i + 1];
     if (graphData[i] > graphMax) {
       graphMax = graphData[i];
       }
+    if (graphData[i] < graphMin) {
+      graphMin = graphData[i];
+    }
     // graphMax = max(graphMax, graphData[i]); 
     // or use that instead 
   }
@@ -186,6 +243,7 @@ void updateGraph() {
 #ifndef OPTIMIZED_MAX_SEARCH
   // Find the maximum value in the graph data
   graphMax = 0;
+  graphMin = 0; 
   for (int i = 0; i < graphW; i++) {
     if (graphData[i] > graphMax) {
       graphMax = graphData[i];
@@ -199,7 +257,7 @@ void updateGraph() {
 // Draw rolling graph on OLED display
 void drawGraph() {
   // Draw a horizontal line at the bottom of the graph
-  display.drawLine(graphX, graphY + graphH, graphX + graphW , graphY + graphH , SSD1306_WHITE);
+  //display.drawLine(graphX, graphY + graphH, graphX + graphW , graphY + graphH , SSD1306_WHITE);
   
   // Draw a vertical line at the left of the graph
   //display.drawLine(graphX, graphY, graphX, graphY + graphH - 1, SSD1306_WHITE);
@@ -207,7 +265,7 @@ void drawGraph() {
   // Draw the graph data as vertical bars
   for (uint8_t i = 0; i < graphW; i++) {
     // Map the data value to the graph height
-    uint8_t barHeight = map(graphData[i], 0, graphMax, 0, graphH );
+    uint8_t barHeight = map(graphData[i], graphMin, graphMax, 0, graphH );
     
     // Draw a vertical bar from the bottom to the data value
 //    display.drawLine(graphX + i, graphY + graphH , graphX + i, graphY + graphH - barHeight, SSD1306_WHITE);
