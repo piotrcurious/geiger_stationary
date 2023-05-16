@@ -47,11 +47,11 @@ uint32_t previousMillis_serial = 0; // Previous time in milliseconds for serial 
 uint32_t previousMillis_graph = 0; // Previous time in milliseconds for graph update
 
 uint32_t interval = 1000;     // Interval to update counts per second
-uint32_t  graph_interval = 1 ; // Interval to update graph , adjustable by a knob 
+uint32_t graph_interval = 2000 ; // Interval to update graph , adjustable by a knob 
 bool pulse_beep = false ; // pulse detected
 
 // Create some variables for the knob
-int knobValue = 0; // Value read from the knob
+uint16_t knobValue = 0; // Value read from the knob
 uint8_t timeBase = 1; // Time base for the rolling graph in seconds
 
 // Create some variables for the rolling graph
@@ -65,7 +65,7 @@ uint16_t graphMax = 100;         // Maximum value of the graph
  //but does not include most recent value in the search 
 
 // Create an array to store the graph data
-uint16_t graphData[SCREEN_WIDTH];
+uint16_t graphData[SCREEN_WIDTH] ;
 //int graphData[graphW]; // todo : there are things hardcoded below, beware
 
 // Interrupt service routine for the Geiger counter
@@ -124,7 +124,7 @@ void loop() {
     
     knobValue = analogRead(KNOB_PIN); // Read value from knob
     timeBase = map(knobValue, 0, 920, 1, 120); // Map knob value to time base in seconds
-    graph_interval = timeBase * 1000 ; // Calculate graph interval based on time base 
+    graph_interval = (uint32_t)timeBase * 1000 ; // Calculate graph interval based on time base 
     
   if (currentMillis - previousMillis_graph >= graph_interval) {
     previousMillis_graph = currentMillis; // Save current time
