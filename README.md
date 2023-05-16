@@ -17,7 +17,10 @@ for geiger_oled2.ino :
 -has few options to customize display 
 -graph auto-scales for minimum and maximum values present in the graph
 
--TODO : millis timestamp overflow is not handled anyhow, it will overflow in 50 days of use. 
--TODO : separate buffer to store averages for long term doses, like daily dose. 
--TODO : more display options like alternate graph modes, display of min and max value etc. 
+TODO : millis timestamp overflow is not handled anyhow, it will overflow in 50 days of use. 
 
+TODO : separate buffer to store averages for long term doses, like daily dose. 
+
+TODO : more display options like alternate graph modes, display of min and max value etc. 
+
+TODO : add 300V DC-DC based on PID and using PWM pin to drive DC-DC step up so the counter is totally standalone. 
