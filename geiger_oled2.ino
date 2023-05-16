@@ -16,7 +16,7 @@
 
 // Define text parameters
 #define DRAW_TEXT // if draw text at all
-//#define DRAW_TEXT_TIMEBASE // if draw timebase
+#define DRAW_TEXT_TIMEBASE // if draw timebase
 //#define DRAW_TEXT_SHADOW // if cast shadow 
 #define DRAW_TEXT_RECTANGLE // if clear space for graph by drawing rectangle
 
@@ -31,7 +31,7 @@
 #define BUZZER_PIN 3 // Buzzer pin
 
 // Define the pin for the knob
-#define KNOB_PIN A1 // Analog pin for the knob
+#define KNOB_PIN A0 // Analog pin for the knob
 
 // Create an object for the OLED display
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -43,13 +43,16 @@ volatile float cpm_avg1; // cpm short term average
 volatile float cpm_avg2; // cpm long term average 
 
 uint32_t previousMillis = 0; // Previous time in milliseconds
-uint32_t previousMillis_serial = 0; // Previous time in milliseconds
-uint32_t interval = 1000; // Interval to update counts per second
+uint32_t previousMillis_serial = 0; // Previous time in milliseconds for serial out routine
+uint32_t previousMillis_graph = 0; // Previous time in milliseconds for graph update
+
+uint32_t interval = 1000;     // Interval to update counts per second
+uint32_t  graph_interval = 1 ; // Interval to update graph , adjustable by a knob 
 bool pulse_beep = false ; // pulse detected
 
 // Create some variables for the knob
 int knobValue = 0; // Value read from the knob
-int timeBase = 10; // Time base for the rolling graph in seconds
+uint8_t timeBase = 1; // Time base for the rolling graph in seconds
 
 // Create some variables for the rolling graph
 uint8_t graphX = 0;             // X position of the graph
@@ -120,18 +123,22 @@ void loop() {
       }
     
     knobValue = analogRead(KNOB_PIN); // Read value from knob
-    timeBase = map(knobValue, 0, 1023, 1, 60); // Map knob value to time base in seconds
-      
+    timeBase = map(knobValue, 0, 920, 1, 120); // Map knob value to time base in seconds
+    graph_interval = timeBase * 1000 ; // Calculate graph interval based on time base 
+    
+  if (currentMillis - previousMillis_graph >= graph_interval) {
+    previousMillis_graph = currentMillis; // Save current time
                        // Clear the display buffer
     display.clearDisplay();
     updateGraph();     // Update rolling graph with new data    
     drawGraph();       // Draw rolling graph on OLED display
+  }
+      
 #ifdef DRAW_TEXT    
     updateDisplay();   // Update OLED display with text  
 #endif //DRAW_TEXT
     display.display(); // Show display buffer on screen
     
-    //interval = timeBase * 1000 / graphW; // Calculate interval based on time base and graph width
  
   } //if 1 second interval
 
@@ -191,13 +198,9 @@ int16_t  x1, y1;
 uint16_t w, h;
 
 char buffer[40];
-  sprintf(buffer, "%d.%02d",(int)cpm, (int)(cpm*100)%100);
+  sprintf(buffer, "%d.%02d",(uint16_t)cpm, (uint16_t)(cpm*100)%100);
 display.getTextBounds(buffer, TEXT_CPM_X, TEXT_CPM_Y, &x1, &y1, &w, &h);
 display.fillRect(x1,y1-1,w,h+1,BLACK); // Clear the area below CPM value
-
-//display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CPM value
-
-//display.fillRect(TEXT_CPM_X,TEXT_CPM_Y-1,40,9,BLACK); // Clear the area below CPM value
 #endif // DRAW_TEXT_RECTANGLE
 
 //paint text
