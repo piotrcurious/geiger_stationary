@@ -56,13 +56,13 @@ uint8_t graphX = 0;             // X position of the graph
 uint8_t graphY = 0;             // Y position of the graph
 uint8_t graphW = SCREEN_WIDTH;  // Width of the graph
 uint8_t graphH = SCREEN_HEIGHT-1; // Height of the graph
-uint8_t graphMin = 0 ;          // minimum value of the graph
-uint8_t graphMax = 100;         // Maximum value of the graph
+uint16_t graphMin = 0 ;          // minimum value of the graph
+uint16_t graphMax = 100;         // Maximum value of the graph
 #define OPTIMIZED_MAX_SEARCH    // faster for bigger displays
  //but does not include most recent value in the search 
 
 // Create an array to store the graph data
-int graphData[SCREEN_WIDTH];
+uint16_t graphData[SCREEN_WIDTH];
 //int graphData[graphW]; // todo : there are things hardcoded below, beware
 
 // Interrupt service routine for the Geiger counter
@@ -100,9 +100,9 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis; // Save current time
     
-    cpm = (cpm * 59 + counts * 60) / 60; // Calculate counts per minute using exponential moving average
+    cpm = (cpm * 59.0 + counts * 60.0) / 60.0; // Calculate counts per minute using exponential moving average
     cpm_avg1 = (cpm_avg1 *  3.0 + cpm) /  4.0;  // short term average for external graph
-    cpm_avg2 = (cpm_avg2 * 11.0 + cpm) / 12.0;  // long  term average for external graph
+    cpm_avg2 = (cpm_avg2 * 11.0 + cpm_avg1) / 12.0;  // long  term average for external graph
 
     noInterrupts();   // Disable interrupts while updating counts
     counts = 0;       // Reset counts to zero
