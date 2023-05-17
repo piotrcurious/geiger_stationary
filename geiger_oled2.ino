@@ -4,6 +4,7 @@
 #include <Adafruit_SSD1306.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <LowPower.h>
 
 // Define interval for serial out statistics
 #define SERIAL_OUT_INTERVAL 60000 // 60 so each minute
@@ -38,6 +39,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Create some variables for the Geiger counter
 volatile uint32_t counts = 0; // Counts per second
+volatile uint32_t counts_copy = 0; // Counts per second, outside ISR copy
 volatile float cpm    = 0; // Counts per minute
 volatile float cpm_avg1; // cpm short term average 
 volatile float cpm_avg2; // cpm long term average 
@@ -48,6 +50,7 @@ uint32_t previousMillis_graph = 0; // Previous time in milliseconds for graph up
 
 uint32_t interval = 1000;     // Interval to update counts per second
 uint32_t graph_interval = 2000 ; // Interval to update graph , adjustable by a knob 
+uint8_t  display_brightness ; // global variable to adjust display brightness
 bool pulse_beep = false ; // pulse detected
 
 // Create some variables for the knob
@@ -102,14 +105,15 @@ void loop() {
   // Update counts per second every interval
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis; // Save current time
+    noInterrupts();  //disable interrupts while reading and updating counts
+    counts_copy = counts; // take snapshot of counts
+    counts = 0;       // Reset counts to zero
+    interrupts();     // Enable interrupts again
     
-    cpm = (cpm * 59.0 + counts * 60.0) / 60.0; // Calculate counts per minute using exponential moving average
+    cpm = (cpm * 59.0 + counts_copy * 60.0) / 60.0; // Calculate counts per minute using exponential moving average    
     cpm_avg1 = (cpm_avg1 *  3.0 + cpm) /  4.0;  // short term average for external graph
     cpm_avg2 = (cpm_avg2 * 11.0 + cpm_avg1) / 12.0;  // long  term average for external graph
 
-    noInterrupts();   // Disable interrupts while updating counts
-    counts = 0;       // Reset counts to zero
-    interrupts();     // Enable interrupts again
     
 //    Serial.print("CPM: "); // Print counts per minute to serial monitor
 //    Serial.println(cpm);
@@ -138,20 +142,36 @@ void loop() {
     updateDisplay();   // Update OLED display with text  
 #endif //DRAW_TEXT
     display.display(); // Show display buffer on screen
-    
+
+
  
   } //if 1 second interval
-
+  
     if (pulse_beep){
-    tone(BUZZER_PIN, 4000, 10); // beep buzzer
+    tone(BUZZER_PIN, 4000, 2); // beep buzzer
     pulse_beep = false ; // reset pulse_beep 
+    display_brightness = 255; 
+     for (uint8_t i = 0; i < 8; i++){
+      LowPower.idle(SLEEP_15MS, ADC_OFF, TIMER2_ON, TIMER1_OFF, TIMER0_ON, SPI_OFF, USART0_OFF, TWI_OFF);
+     }
     }
-}
+    
+    display_brightness-- ;        // fade the display
+    if (display_brightness <=1) {
+      display_brightness = 1; // min
+    }
+    
+    display.ssd1306_command(SSD1306_SETCONTRAST);
+    display.ssd1306_command(display_brightness);
+
+    
+    LowPower.idle(SLEEP_15MS, ADC_OFF, TIMER2_OFF, TIMER1_OFF, TIMER0_ON, SPI_OFF, USART0_OFF, TWI_OFF);
+    
+} // loop()
 
 #ifdef DRAW_TEXT
 // Update OLED display with new data
 void updateDisplay() {
-
 
 #ifdef DRAW_TEXT_SHADOW
 //cast +1 -1 shadow first
